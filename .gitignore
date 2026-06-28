@@ -1,0 +1,38 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Tooling and editor state
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.vscode/
+.idea/
+
+# Build artifacts
+build/
+dist/
+build_src/
+*.spec.bak
+
+# Local OS noise
+Thumbs.db
+Desktop.ini
+
+# Backup and scratch copies
+* copy.py
+* copy *.py
+*.bak
+*.tmp
+
+# Local files to keep out of Git for this project
+remove_comments_build.py
+rad.dat
+main_v3.py
+operation_control.py
