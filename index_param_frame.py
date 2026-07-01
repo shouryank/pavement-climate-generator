@@ -1083,6 +1083,8 @@ class IndexParameterFrame(ttk.Frame):
                 writer.writerow(header)
 
                 for param_key, display_name, _ptype, unit, category in PARAMETER_REGISTRY:
+                    if not self._include_summary_parameter(param_key):
+                        continue
                     pdata = summary_results.get(param_key)
                     if not pdata:
                         continue
@@ -1167,6 +1169,8 @@ class IndexParameterFrame(ttk.Frame):
                 for scenario in scenarios:
                     txt_handle.write(f"Scenario: {scenario}\n")
                     for param_key, display_name, _ptype, unit, _category in PARAMETER_REGISTRY:
+                        if not self._include_summary_parameter(param_key):
+                            continue
                         pdata = summary_results.get(param_key)
                         if not pdata:
                             continue
@@ -1368,6 +1372,8 @@ class IndexParameterFrame(ttk.Frame):
                 worksheet.column_dimensions[self._excel_column_name(base_col + block_width)].width = 3
 
         for param_key, display_name, _ptype, unit, category in PARAMETER_REGISTRY:
+            if not self._include_summary_parameter(param_key):
+                continue
             if include_pg != (param_key in PG_PARAMETER_KEYS):
                 continue
 
@@ -1461,6 +1467,9 @@ class IndexParameterFrame(ttk.Frame):
                 return None
             return future_value / historic_value
         return future_value - historic_value
+
+    def _include_summary_parameter(self, param_key):
+        return not str(param_key).startswith("ratio_24hr_precip_quantile_")
 
     def _format_summary_value(self, value):
         if value is None:
@@ -1576,6 +1585,8 @@ class IndexParameterFrame(ttk.Frame):
 
         current_cat = None
         for param_key, display_name, ptype, unit, category in PARAMETER_REGISTRY:
+            if not self._include_summary_parameter(param_key):
+                continue
             if param_key not in summary_results:
                 continue
 
@@ -1634,6 +1645,8 @@ class IndexParameterFrame(ttk.Frame):
                 writer.writerow(header)
 
                 for param_key, display_name, ptype, unit, category in PARAMETER_REGISTRY:
+                    if not self._include_summary_parameter(param_key):
+                        continue
                     if param_key not in summary_results:
                         continue
 
