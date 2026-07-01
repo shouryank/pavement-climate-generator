@@ -220,20 +220,26 @@ class MainMenu(ttk.Frame):
                    command=lambda: controller.show_frame("DGPXBatch"),
                    style="MainMenu.Secondary.TButton").pack(fill="x")
 
-        tools = self._create_menu_card(
+        analysis_tools = self._create_menu_card(
             button_frame,
-            "Analysis & Settings",
+            "Analysis",
             "",
         )
-        ttk.Button(tools, text="Index Parameter Calculator",
+        ttk.Button(analysis_tools, text="Index Parameter Calculator",
                    command=lambda: controller.show_frame("IndexParameterFrame"),
-                   style="MainMenu.TButton").pack(fill="x", pady=(0, 8))
-        ttk.Button(tools, text="Settings",
+                   style="MainMenu.TButton").pack(fill="x")
+
+        settings_tools = self._create_menu_card(
+            button_frame,
+            "Settings",
+            "",
+        )
+        ttk.Button(settings_tools, text="Settings",
                    command=lambda: controller.show_frame("Settings"),
-                   style="MainMenu.Secondary.TButton").pack(fill="x")
-        ttk.Button(tools, text="Jobs",
+                   style="MainMenu.TButton").pack(fill="x", pady=(0, 8))
+        ttk.Button(settings_tools, text="Jobs",
                    command=lambda: controller.show_frame("JobsFrame"),
-                   style="MainMenu.Secondary.TButton").pack(fill="x", pady=(8, 0))
+                   style="MainMenu.Secondary.TButton").pack(fill="x")
 
         logo_shell = tk.Frame(self, bg=BG_CARD, highlightbackground=CARD_BORDER, highlightthickness=1, bd=0)
         logo_shell.grid(row=0, column=1, sticky="nsew")

@@ -17,7 +17,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from openpyxl import Workbook, load_workbook
-from openpyxl.styles import Alignment
+from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
 
 from generator_frontend import list_subdirs
 from index_parameter_calculator import (
@@ -104,21 +104,21 @@ class IndexParameterFrame(ttk.Frame):
         baseline_end_frame = ttk.Frame(yr_frame)
         baseline_end_frame.grid(row=0, column=1, sticky="w", padx=(0, 20))
         ttk.Label(baseline_end_frame, text="End:").pack(side="left")
-        self.bl_end_var = tk.StringVar(value="1980")
+        self.bl_end_var = tk.StringVar(value="1999")
         self.bl_end_entry = self._build_year_entry(baseline_end_frame, self.bl_end_var)
         self.bl_end_entry.pack(side="left")
 
         future_start_frame = ttk.Frame(yr_frame)
         future_start_frame.grid(row=0, column=2, sticky="w", padx=(0, 20))
         ttk.Label(future_start_frame, text="Future Start:").pack(side="left")
-        self.fut_start_var = tk.StringVar(value="2020")
+        self.fut_start_var = tk.StringVar(value="2050")
         self.fut_start_entry = self._build_year_entry(future_start_frame, self.fut_start_var)
         self.fut_start_entry.pack(side="left")
 
         future_end_frame = ttk.Frame(yr_frame)
         future_end_frame.grid(row=0, column=3, sticky="w")
         ttk.Label(future_end_frame, text="End:").pack(side="left")
-        self.fut_end_var = tk.StringVar(value="2050")
+        self.fut_end_var = tk.StringVar(value="2099")
         self.fut_end_entry = self._build_year_entry(future_end_frame, self.fut_end_var)
         self.fut_end_entry.pack(side="left")
 
@@ -1071,11 +1071,12 @@ class IndexParameterFrame(ttk.Frame):
                     "Grid", station_grid,
                 ])
 
-                header = ["Section", "Category", "Parameter", "Unit", "Historical Baseline"]
+                header = ["Section", "Category", "Parameter", "Unit"]
                 for model_name in model_names:
                     header.extend([
-                        f"{model_name} Future/Model Value",
-                        f"{model_name} Difference",
+                        f"{model_name} Historical Value",
+                        f"{model_name} Future Value",
+                        f"{model_name} Change Factor",
                         f"{model_name} Normalized Delta (deg C)",
                         f"{model_name} % Difference",
                     ])
@@ -1086,23 +1087,22 @@ class IndexParameterFrame(ttk.Frame):
                     if not pdata:
                         continue
 
-                    hist_val = pdata.get("historic")
-                    hist_str = self._format_summary_value(hist_val)
                     row = [
                         pdata.get("section", "CMIP Tool Parameters"),
                         category,
                         display_name,
                         self._display_unit_for_csv(unit),
-                        hist_str,
                     ]
 
                     for model_name in model_names:
                         label = f"{scenario}/{model_name}"
                         mdata = pdata.get("models", {}).get(label, {})
+                        historical_value = mdata.get("historical_model")
                         fm = mdata.get("future_model")
-                        diff = mdata.get("difference")
+                        diff = self._summary_change_factor(param_key, historical_value, fm)
                         pct = mdata.get("pct_change")
                         row.extend([
+                            self._format_summary_value(historical_value),
                             self._format_summary_value(fm),
                             self._format_summary_value(diff),
                             self._format_summary_value(mdata.get("normalized_delta_c")),
@@ -1130,10 +1130,10 @@ class IndexParameterFrame(ttk.Frame):
                 "Scenario",
                 "Parameter",
                 "Unit",
-                "Historical Baseline",
                 "Model",
-                "Future/Model Value",
-                "Difference",
+                "Historical Model Value",
+                "Future Model Value",
+                "Change Factor",
                 "Normalized Delta (deg C)",
                 "% Difference",
             ])
@@ -1171,12 +1171,16 @@ class IndexParameterFrame(ttk.Frame):
                         if not pdata:
                             continue
 
-                        hist_str = self._format_summary_value(pdata.get("historic"))
                         for model_name in self._scenario_models(summary_results, scenario):
                             label = f"{scenario}/{model_name}"
                             mdata = pdata.get("models", {}).get(label, {})
+                            historical_value = mdata.get("historical_model")
+                            future_value = mdata.get("future_model")
+                            hist_str = self._format_summary_value(historical_value)
                             aggregate_str = self._format_summary_value(mdata.get("future_model"))
-                            diff_str = self._format_summary_value(mdata.get("difference"))
+                            diff_str = self._format_summary_value(
+                                self._summary_change_factor(param_key, historical_value, future_value)
+                            )
                             pct_str = self._format_percent_value(mdata.get("pct_change"))
                             writer.writerow([
                                 location_name,
@@ -1187,15 +1191,15 @@ class IndexParameterFrame(ttk.Frame):
                                 scenario,
                                 display_name,
                                 self._display_unit_for_csv(unit),
-                                hist_str,
                                 model_name,
+                                hist_str,
                                 aggregate_str,
                                 diff_str,
                                 self._format_summary_value(mdata.get("normalized_delta_c")),
                                 pct_str,
                             ])
                             txt_handle.write(
-                                f"- {display_name} [{self._display_unit_for_csv(unit)}] | {model_name} | historical={hist_str} | aggregate={aggregate_str} | difference={diff_str} | pct_difference={pct_str}\n"
+                                f"- {display_name} [{self._display_unit_for_csv(unit)}] | {model_name} | historical={hist_str} | aggregate={aggregate_str} | change_factor={diff_str} | pct_difference={pct_str}\n"
                             )
                     txt_handle.write("\n")
 
@@ -1256,11 +1260,30 @@ class IndexParameterFrame(ttk.Frame):
             )
 
         wrap_alignment = Alignment(wrap_text=True, vertical="top")
+        header_fill = PatternFill(start_color="D3D3D3", end_color="D3D3D3", fill_type="solid")  # Light gray
+        header_font = Font(bold=True, size=11)
+        thin_border = Border(
+            left=Side(style="thin"),
+            right=Side(style="thin"),
+            top=Side(style="thin"),
+            bottom=Side(style="thin")
+        )
+        
         for worksheet in (cmip_ws, pg_ws):
             for row in worksheet.iter_rows():
                 for cell in row:
                     cell.alignment = wrap_alignment
-            worksheet.freeze_panes = "A4"
+            
+            # Apply header formatting to first 2 rows
+            for row_idx in range(1, 3):
+                for col_idx in range(1, worksheet.max_column + 1):
+                    cell = worksheet.cell(row=row_idx, column=col_idx)
+                    cell.fill = header_fill
+                    cell.font = header_font
+                    cell.border = thin_border
+            
+            # Freeze panes: freeze columns A-D and rows 1-2
+            worksheet.freeze_panes = "E3"
 
         workbook_path = Path(analysis_dir) / "extended_summary.xlsx"
         workbook.save(workbook_path)
@@ -1279,7 +1302,7 @@ class IndexParameterFrame(ttk.Frame):
             worksheet.append([])
 
         start_row = worksheet.max_row + 1
-        block_width = 1 + (2 * len(model_labels)) + 2
+        block_width = (3 * len(model_labels)) + 3
 
         # Parse scenarios and models from labels (do this once at the beginning)
         scenario_model_map = {}
@@ -1293,7 +1316,8 @@ class IndexParameterFrame(ttk.Frame):
                 scenario_model_map[scenario] = []
             scenario_model_map[scenario].append((model, label))
 
-        header_row_1 = ["Location", "Category", "Parameter", "Unit"]
+        # Header Row 1: Station info header
+        header_row_1 = ["", "", "", ""]  # Empty base columns for alignment
         for station_index, station_summary in enumerate(station_summaries, start=1):
             header_row_1.extend(
                 [self._station_block_title(station_index, station_summary)]
@@ -1304,61 +1328,25 @@ class IndexParameterFrame(ttk.Frame):
         worksheet.append(header_row_1)
         worksheet.row_dimensions[start_row].height = 90
 
-        # Header Row 2: Scenario breakdown
+        # Header Row 2: Combined column labels (Scenario - Model - DataType)
         header_row_2 = ["Location", "Category", "Parameter", "Unit"]
         for station_index, _station_summary in enumerate(station_summaries, start=1):
-            header_row_2.append("Historical")
-            header_row_2.append("")
             for scenario in sorted(scenario_model_map.keys()):
                 models = scenario_model_map[scenario]
-                header_row_2.append(scenario)
-                header_row_2.extend([""] * (2 * len(models) - 1))
-            header_row_2.extend(["Ensemble", ""])
+                for model, _label in models:
+                    # Format: "RCP 4.5 -ACCESS1-0 Historical" etc.
+                    header_row_2.extend([
+                        f"{scenario} -{model} Historical",
+                        f"{scenario} -{model} Future",
+                        f"{scenario} -{model} Change Factor"
+                    ])
+            header_row_2.extend(["Ensemble Historical", "Ensemble Future", "Ensemble Change Factor"])
             if station_index < len(station_summaries):
                 header_row_2.append("")
         worksheet.append(header_row_2)
         worksheet.row_dimensions[start_row + 1].height = 30
 
-        # Header Row 3: Model and Value/Diff breakdown
-        header_row_3 = ["Location", "Category", "Parameter", "Unit"]
-        for station_index, _station_summary in enumerate(station_summaries, start=1):
-            header_row_3.append("Value")
-            header_row_3.append("Diff")
-            for scenario in sorted(scenario_model_map.keys()):
-                models = scenario_model_map[scenario]
-                for model, _label in models:
-                    header_row_3.extend([f"{model} Value", f"{model} Diff"])
-            header_row_3.extend(["Value", "Diff"])
-            if station_index < len(station_summaries):
-                header_row_3.append("")
-        worksheet.append(header_row_3)
-        worksheet.row_dimensions[start_row + 2].height = 30
-
-        if station_summaries:
-            first_station_col = 5
-            for station_index in range(len(station_summaries)):
-                block_start = first_station_col + station_index * (block_width + 1)
-                block_end = block_start + block_width - 1
-                worksheet.merge_cells(
-                    start_row=start_row,
-                    start_column=block_start,
-                    end_row=start_row,
-                    end_column=block_end,
-                )
-                
-                # Merge scenario headers in row 2
-                col_offset = block_start
-                col_offset += 2  # After Historical Value/Diff
-                for scenario in sorted(scenario_model_map.keys()):
-                    models = scenario_model_map[scenario]
-                    if len(models) > 1:
-                        worksheet.merge_cells(
-                            start_row=start_row + 1,
-                            start_column=col_offset,
-                            end_row=start_row + 1,
-                            end_column=col_offset + (2 * len(models) - 1),
-                        )
-                    col_offset += 2 * len(models)
+        # Do NOT merge cells - keep all columns independent and unmerged
 
         worksheet.column_dimensions["A"].width = 24
         worksheet.column_dimensions["B"].width = 24
@@ -1366,12 +1354,14 @@ class IndexParameterFrame(ttk.Frame):
         worksheet.column_dimensions["D"].width = 10
         for station_index in range(len(station_summaries)):
             base_col = 5 + station_index * (block_width + 1)
-            worksheet.column_dimensions[self._excel_column_name(base_col)].width = 12
             for label_index, _label in enumerate(model_labels):
-                value_col = base_col + 1 + (label_index * 2)
-                diff_col = value_col + 1
-                worksheet.column_dimensions[self._excel_column_name(value_col)].width = 18
-                worksheet.column_dimensions[self._excel_column_name(diff_col)].width = 16
+                hist_col = base_col + (label_index * 3)
+                future_col = hist_col + 1
+                diff_col = hist_col + 2
+                worksheet.column_dimensions[self._excel_column_name(hist_col)].width = 16
+                worksheet.column_dimensions[self._excel_column_name(future_col)].width = 16
+                worksheet.column_dimensions[self._excel_column_name(diff_col)].width = 18
+            worksheet.column_dimensions[self._excel_column_name(base_col + block_width - 3)].width = 16
             worksheet.column_dimensions[self._excel_column_name(base_col + block_width - 2)].width = 14
             worksheet.column_dimensions[self._excel_column_name(base_col + block_width - 1)].width = 16
             if station_index < len(station_summaries) - 1:
@@ -1394,29 +1384,32 @@ class IndexParameterFrame(ttk.Frame):
             param_station_summaries = pdata.get("station_summaries", [])
             for station_index in range(len(station_summaries)):
                 station_summary = param_station_summaries[station_index] if station_index < len(param_station_summaries) else {}
-                station_hist = station_summary.get("historic")
-                
-                # Append Historical value and diff
-                row.append(self._format_summary_value(station_hist))
-                station_hist_diff = None
-                row.append(self._format_summary_value(station_hist_diff))  # Historical diff is always None/blank
-                
+
                 # Append data for each scenario (in sorted order)
                 for scenario in sorted(scenario_model_map.keys()):
                     models = scenario_model_map[scenario]
                     for model, label in models:
-                        station_value = station_summary.get("models", {}).get(label)
-                        station_diff = None
-                        if isinstance(station_hist, (int, float)) and isinstance(station_value, (int, float)):
-                            station_diff = station_value - station_hist
+                        model_payload = station_summary.get("models", {}).get(label, {})
+                        station_hist = model_payload.get("historical")
+                        station_value = model_payload.get("future")
+                        station_diff = self._summary_change_factor(param_key, station_hist, station_value)
+                        row.append(self._format_summary_value(station_hist))
                         row.append(self._format_summary_value(station_value))
                         row.append(self._format_summary_value(station_diff))
                 
                 # Append Ensemble value and diff
                 ensemble_value = station_summary.get("ensemble_average")
-                ensemble_diff = None
-                if isinstance(station_hist, (int, float)) and isinstance(ensemble_value, (int, float)):
-                    ensemble_diff = ensemble_value - station_hist
+                ensemble_hist_values = [
+                    model_payload.get("historical")
+                    for model_payload in station_summary.get("models", {}).values()
+                    if isinstance(model_payload.get("historical"), (int, float))
+                ]
+                ensemble_hist = (
+                    sum(ensemble_hist_values) / len(ensemble_hist_values)
+                    if ensemble_hist_values else None
+                )
+                ensemble_diff = self._summary_change_factor(param_key, ensemble_hist, ensemble_value)
+                row.append(self._format_summary_value(ensemble_hist))
                 row.append(self._format_summary_value(ensemble_value))
                 row.append(self._format_summary_value(ensemble_diff))
                 if station_index < len(station_summaries) - 1:
@@ -1458,6 +1451,16 @@ class IndexParameterFrame(ttk.Frame):
         if isinstance(value, (int, float)):
             return float(value)
         return None
+
+    def _summary_change_factor(self, param_key, historic_value, future_value):
+        if not isinstance(historic_value, (int, float)) or not isinstance(future_value, (int, float)):
+            return None
+        parameter_type = PARAMETER_METADATA_BY_KEY.get(param_key, {}).get("parameter_type")
+        if parameter_type == "precip":
+            if historic_value == 0:
+                return None
+            return future_value / historic_value
+        return future_value - historic_value
 
     def _format_summary_value(self, value):
         if value is None:

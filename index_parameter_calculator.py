@@ -1651,6 +1651,27 @@ def run_index_calculation(
             for model in models:
                 label = f"{scenario}/{model}"
                 if param_key in ("pg_high_temp", "pg_low_temp", "standard_pg_high_grade", "standard_pg_low_grade"):
+                    historical_model_value = _weighted_scalar(
+                        (station_data["model_results"][label]["baseline_model_pg_summary"][param_key], station_data["weight"])
+                        for station_data in station_results
+                    )
+                elif param_key in ("pg_change_factor_high", "final_projected_pg_high"):
+                    historical_model_value = _weighted_scalar(
+                        (station_data["model_results"][label]["baseline_model_pg_summary"]["pg_high_temp"], station_data["weight"])
+                        for station_data in station_results
+                    )
+                elif param_key in ("pg_change_factor_low", "final_projected_pg_low"):
+                    historical_model_value = _weighted_scalar(
+                        (station_data["model_results"][label]["baseline_model_pg_summary"]["pg_low_temp"], station_data["weight"])
+                        for station_data in station_results
+                    )
+                else:
+                    historical_model_value = _weighted_scalar(
+                        (_summarize_timeseries(station_data["model_results"][label]["baseline_model"].get(param_key, {})), station_data["weight"])
+                        for station_data in station_results
+                    )
+
+                if param_key in ("pg_high_temp", "pg_low_temp", "standard_pg_high_grade", "standard_pg_low_grade"):
                     aggregate_value = _weighted_scalar(
                         (station_data["model_results"][label]["future_model_pg_summary"][param_key], station_data["weight"])
                         for station_data in station_results
@@ -1681,14 +1702,15 @@ def run_index_calculation(
                         for station_data in station_results
                     )
 
-                diff = _difference_value(aggregate_value, hist_summary)
+                diff = _difference_value(aggregate_value, historical_model_value)
                 model_summaries[label] = {
+                    "historical_model": historical_model_value,
                     "future_model": aggregate_value,
                     "difference": diff,
                     "normalized_delta_c": _normalize_temperature_delta_c(param_key, diff),
                     "future_reason": _missing_reason(param_key, aggregate_value),
                     "difference_reason": _missing_reason(param_key, diff),
-                    "pct_change": pct_change(aggregate_value, hist_summary),
+                    "pct_change": pct_change(aggregate_value, historical_model_value),
                 }
 
         station_summaries = []
@@ -1712,6 +1734,17 @@ def run_index_calculation(
                 for model in models:
                     label = f"{scenario}/{model}"
                     if param_key in ("pg_high_temp", "pg_low_temp", "standard_pg_high_grade", "standard_pg_low_grade"):
+                        station_historical_value = station_data["model_results"][label]["baseline_model_pg_summary"][param_key]
+                    elif param_key in ("pg_change_factor_high", "final_projected_pg_high"):
+                        station_historical_value = station_data["model_results"][label]["baseline_model_pg_summary"]["pg_high_temp"]
+                    elif param_key in ("pg_change_factor_low", "final_projected_pg_low"):
+                        station_historical_value = station_data["model_results"][label]["baseline_model_pg_summary"]["pg_low_temp"]
+                    else:
+                        station_historical_value = _summarize_timeseries(
+                            station_data["model_results"][label]["baseline_model"].get(param_key, {})
+                        )
+
+                    if param_key in ("pg_high_temp", "pg_low_temp", "standard_pg_high_grade", "standard_pg_low_grade"):
                         station_value = station_data["model_results"][label]["future_model_pg_summary"][param_key]
                     elif param_key == "pg_change_factor_high":
                         station_value = station_data["model_results"][label]["pg_change_factor_high"]
@@ -1725,7 +1758,10 @@ def run_index_calculation(
                         station_value = _summarize_timeseries(
                             station_data["model_results"][label]["future_model"].get(param_key, {})
                         )
-                    station_models[label] = station_value
+                    station_models[label] = {
+                        "historical": station_historical_value,
+                        "future": station_value,
+                    }
                     if isinstance(station_value, (int, float)):
                         scalar_values.append(float(station_value))
 
