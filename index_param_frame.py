@@ -9,9 +9,7 @@ a progress indicator, then displays summary popup and saves CSVs.
 import csv
 import math
 import shutil
-import threading
 from pathlib import Path
-from threading import Thread
 
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -1060,7 +1058,7 @@ class IndexParameterFrame(ttk.Frame):
             scenario_dir.mkdir(parents=True, exist_ok=True)
             csv_path = scenario_dir / f"{location_safe}_{station_grid}.csv"
 
-            with csv_path.open("w", newline="", encoding="utf-8") as handle:
+            with csv_path.open("w", newline="", encoding="utf-8-sig") as handle:
                 writer = csv.writer(handle)
                 writer.writerow([
                     "Scenario", scenario,
@@ -1093,7 +1091,7 @@ class IndexParameterFrame(ttk.Frame):
                         pdata.get("section", "CMIP Tool Parameters"),
                         category,
                         display_name,
-                        self._display_unit_for_csv(unit),
+                        self._display_unit(unit),
                     ]
 
                     for model_name in model_names:
@@ -1121,7 +1119,7 @@ class IndexParameterFrame(ttk.Frame):
         csv_path = Path(analysis_dir) / "summary.csv"
         txt_path = Path(analysis_dir) / "summary.txt"
 
-        with csv_path.open("w", newline="", encoding="utf-8") as csv_handle, txt_path.open("w", encoding="utf-8") as txt_handle:
+        with csv_path.open("w", newline="", encoding="utf-8-sig") as csv_handle, txt_path.open("w", encoding="utf-8") as txt_handle:
             writer = csv.writer(csv_handle)
             writer.writerow([
                 "Location",
@@ -1194,7 +1192,7 @@ class IndexParameterFrame(ttk.Frame):
                                 pdata.get("section", "CMIP Tool Parameters"),
                                 scenario,
                                 display_name,
-                                self._display_unit_for_csv(unit),
+                                self._display_unit(unit),
                                 model_name,
                                 hist_str,
                                 aggregate_str,
@@ -1203,7 +1201,7 @@ class IndexParameterFrame(ttk.Frame):
                                 pct_str,
                             ])
                             txt_handle.write(
-                                f"- {display_name} [{self._display_unit_for_csv(unit)}] | {model_name} | historical={hist_str} | aggregate={aggregate_str} | change_factor={diff_str} | pct_difference={pct_str}\n"
+                                f"- {display_name} [{self._display_unit(unit)}] | {model_name} | historical={hist_str} | aggregate={aggregate_str} | change_factor={diff_str} | pct_difference={pct_str}\n"
                             )
                     txt_handle.write("\n")
 
@@ -1385,7 +1383,7 @@ class IndexParameterFrame(ttk.Frame):
                 self._format_location_text(location_name, location_info),
                 category,
                 display_name,
-                self._display_unit_for_excel_summary(include_pg),
+                self._display_unit(unit),
             ]
             param_station_summaries = pdata.get("station_summaries", [])
             for station_index in range(len(station_summaries)):
@@ -1447,16 +1445,12 @@ class IndexParameterFrame(ttk.Frame):
             name = chr(65 + remainder) + name
         return name
 
-    def _display_unit_for_excel_summary(self, include_pg):
-        return "\u00B0C" if include_pg else "\u00B0F"
-
-    def _display_unit_for_csv(self, unit):
-        return str(unit).replace("\u00B0F", "deg F").replace("\u00B0C", "deg C")
-
-    def _excel_scalar_value(self, value):
-        if isinstance(value, (int, float)):
-            return float(value)
-        return None
+    def _display_unit(self, unit):
+        return (
+            str(unit)
+            .replace("Â°F", "\u00B0F")
+            .replace("Â°C", "\u00B0C")
+        )
 
     def _summary_change_factor(self, param_key, historic_value, future_value):
         if not isinstance(historic_value, (int, float)) or not isinstance(future_value, (int, float)):
