@@ -626,9 +626,6 @@ class IndexParameterFrame(ttk.Frame):
         a = math.sin(dlat / 2) ** 2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2) ** 2
         return 2 * radius_mi * math.asin(math.sqrt(a))
 
-    def _euclidean_distance(self, lat1, lon1, lat2, lon2):
-        return ((lat2 - lat1) ** 2 + (lon2 - lon1) ** 2) ** 0.5
-
     def _station_count_for_grid(self, station_grid):
         return {"1x1": 1, "2x2": 4, "3x3": 9}.get(station_grid, 1)
 
@@ -698,7 +695,7 @@ class IndexParameterFrame(ttk.Frame):
 
         ranked = []
         for item in station_catalog:
-            rank_distance = self._euclidean_distance(
+            rank_distance = self._haversine_miles(
                 latitude,
                 longitude,
                 float(item["station_lat"]),

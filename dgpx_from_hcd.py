@@ -210,6 +210,7 @@ def calculate_eicm_radiation(latitude_deg, declination_deg, ratio):
 def overwrite_daily_header_line(daily_tag, eol, m, d, y, sunrise, sunset, solar_rad):
     return f"{daily_tag}{m} {d} {y} {sunrise:.3f} {sunset:.3f} {solar_rad:.3f}{eol}"
 
+# Change the DGPX hourly output format (field order and decimal precision) here in the future.
 def format_hour_line(indent, hour, temp_f, rain_in, wind_mph, pcts, water_tbl, rh):
     return (
         f"{indent}{hour} "
